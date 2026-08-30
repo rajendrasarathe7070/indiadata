@@ -33,7 +33,7 @@ def ping():
 def get_pincode_data(code: int):
     try:
         # Supabase se pincode table query karna
-        response = supabase.table("pincodes").select("*").eq("pincode", code).execute()
+        response = supabase.table("pincode").select("*").eq("pincode", code).execute()
         
         if not response.data:
             raise HTTPException(
