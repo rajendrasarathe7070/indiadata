@@ -2,7 +2,8 @@ import os
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from supabase import create_client, Client
-from dotenv import load_load_env
+from dotenv import load_dotenv
+
 
 load_dotenv()
 
