@@ -100,14 +100,9 @@ def search_bank_branch(
     city: str = Query(..., description="e.g. Harsud")
 ):
     try:
-        # Case-insensitive wildcard search setup
         bank_query = f"%{bank.strip()}%"
         city_query = f"%{city.strip()}%"
-        
-        # 1. Table ka naam 'ifsc_codes' rakha (Aapke Supabase ke mutabik)
-        # 2. Columns ke naam small letters me 'ifsc' aur capital me 'BANK', 'CITY', 'BRANCH', 'ADDRESS' data check ke hisab se mapping ki
-        response = supabase.table("ifsc").select("BRANCH,ifsc,ADDRESS").ilike("BANK", bank_query).ilike("CITY", city_query).execute()
-        
+        # Yahan table ka naam strictly 'ifsc_code' kar diya gaya hai
+        response = supabase.table("ifsc_code").select("BRANCH,IFSC,ADDRESS").ilike("BANK", bank_query).ilike("CITY", city_query).execute()
         return {"success": True, "count": len(response.data), "branches": response.data}
-    except Exception as e: 
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
