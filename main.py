@@ -43,20 +43,24 @@ def get_pincode_data(code: str):
     except HTTPException as he: raise he
     except Exception as e: raise HTTPException(status_code=500, detail="Database fetch error")
 
-# 2. STANDARD IFSC LOOKUP (Crash-Proof Single Object Format)
+# 2. STANDARD IFSC LOOKUP (Sahi Column 'IFSC' matching ke sath)
 @app.get("/api/v1/ifsc/{code}")
 def get_ifsc_data(code: str):
     try:
         ifsc_code = code.upper().strip()
-        response = supabase.table("ifsc").select("*").eq("ifsc", ifsc_code).execute()
         
-        # Yahan array empty hone par crash nahi hoga, gracefully 404 dega
+        # NOTE: Aapke CSV data ke mutabik column ka naam capital "IFSC" hai, isliye yahan capital kiya
+        response = supabase.table("ifsc_codes").select("*").eq("IFSC", ifsc_code).execute()
+        
         if not response.data or len(response.data) == 0:
             raise HTTPException(status_code=404, detail="Invalid or Unknown IFSC code")
             
-        return {"success": True, "data": response.data[0]} 
-    except HTTPException as he: raise he
-    except Exception as e: raise HTTPException(status_code=500, detail="Database fetch error")
+        return {"success": True, "data": response.data[0]} # Clean Single Object Response
+    except HTTPException as he: 
+        raise he
+    except Exception as e: 
+        # Database fetch error ki jagah ab real database error screen par aayega
+        raise HTTPException(status_code=500, detail=f"Database Error: {str(e)}")
 
 # 3. ADVANCED: STATE SE DISTRICTS (Case-Insensitive Setup)
 # 3. FIXED: STATE SE DISTRICTS (Smart Case-Insensitive Filter)
