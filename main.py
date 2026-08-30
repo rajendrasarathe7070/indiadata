@@ -50,7 +50,7 @@ def get_ifsc_data(code: str):
         ifsc_code = code.upper().strip()
         
         # NOTE: Aapke CSV data ke mutabik column ka naam capital "IFSC" hai, isliye yahan capital kiya
-        response = supabase.table("ifsc_code").select("*").eq("IFSC", ifsc_code).execute()
+        response = supabase.table("ifsc").select("*").eq("IFSC", ifsc_code).execute()
         
         if not response.data or len(response.data) == 0:
             raise HTTPException(status_code=404, detail="Invalid or Unknown IFSC code")
