@@ -59,20 +59,23 @@ def get_ifsc_data(code: str):
     except Exception as e: raise HTTPException(status_code=500, detail="Database fetch error")
 
 # 3. ADVANCED: STATE SE DISTRICTS (Case-Insensitive Setup)
+# 3. FIXED: STATE SE DISTRICTS (Smart Case-Insensitive Filter)
 @app.get("/api/v1/districts")
 def get_districts_by_state(state: str = Query(..., description="State name e.g. Telangana")):
     try:
-        state_name = state.strip()
-        # .ilike se User 'telangana' likhe ya 'Telangana', matching ho jayegi
-        response = supabase.table("pincode").select("district").ilike("statename", state_name).execute()
+        # Wildcard '%' jodne se user 'telangana' likhe ya 'Telangana', match ho jayega
+        state_query = f"%{state.strip()}%"
+        
+        response = supabase.table("pincode").select("district").ilike("statename", state_query).execute()
         
         if not response.data or len(response.data) == 0:
             return {"success": True, "count": 0, "districts": []}
             
         unique_districts = list(set([row['district'] for row in response.data if row.get('district')]))
         return {"success": True, "count": len(unique_districts), "districts": sorted(unique_districts)}
-    except Exception as e: raise HTTPException(status_code=500, detail="Error filtering districts")
-
+    except Exception as e: 
+        # detail=str(e) lagane se agar koi galti hogi to screen par saaf dikhegi
+        raise HTTPException(status_code=500, detail=str(e))
 # 4. ADVANCED: UNIQUE BANKS LIST
 @app.get("/api/v1/banks/unique")
 def get_unique_banks():
@@ -85,15 +88,22 @@ def get_unique_banks():
     except Exception as e: raise HTTPException(status_code=500, detail="Error fetching unique banks")
 
 # 5. ADVANCED: BRANCH FINDER (Case-Insensitive Smart Search)
+
+# 5. FIXED: BRANCH FINDER (Sahi Table 'ifsc_codes' aur Columns ke sath)
 @app.get("/api/v1/search-branch")
 def search_bank_branch(
     bank: str = Query(..., description="e.g. Bank of Baroda"), 
     city: str = Query(..., description="e.g. Harsud")
 ):
     try:
-        bank_name = bank.strip()
-        city_name = city.strip()
-        # ilike lagane se users lowercase me bhi search karenge to sahi data milega
-        response = supabase.table("IFSC").select("BRANCH,IFSC,ADDRESS").ilike("BANK", bank_name).ilike("CITY", city_name).execute()
+        # Case-insensitive wildcard search setup
+        bank_query = f"%{bank.strip()}%"
+        city_query = f"%{city.strip()}%"
+        
+        # 1. Table ka naam 'ifsc_codes' rakha (Aapke Supabase ke mutabik)
+        # 2. Columns ke naam small letters me 'ifsc' aur capital me 'BANK', 'CITY', 'BRANCH', 'ADDRESS' data check ke hisab se mapping ki
+        response = supabase.table("ifsc_codes").select("BRANCH,ifsc,ADDRESS").ilike("BANK", bank_query).ilike("CITY", city_query).execute()
+        
         return {"success": True, "count": len(response.data), "branches": response.data}
-    except Exception as e: raise HTTPException(status_code=500, detail="Error searching branches")
+    except Exception as e: 
+        raise HTTPException(status_code=500, detail=str(e))
