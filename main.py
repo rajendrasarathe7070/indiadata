@@ -48,7 +48,7 @@ def get_pincode_data(code: str):
 def get_ifsc_data(code: str):
     try:
         ifsc_code = code.upper().strip()
-        response = supabase.table("IFSC").select("*").eq("ifsc", ifsc_code).execute()
+        response = supabase.table("ifsc").select("*").eq("ifsc", ifsc_code).execute()
         
         # Yahan array empty hone par crash nahi hoga, gracefully 404 dega
         if not response.data or len(response.data) == 0:
@@ -102,7 +102,7 @@ def search_bank_branch(
         
         # 1. Table ka naam 'ifsc_codes' rakha (Aapke Supabase ke mutabik)
         # 2. Columns ke naam small letters me 'ifsc' aur capital me 'BANK', 'CITY', 'BRANCH', 'ADDRESS' data check ke hisab se mapping ki
-        response = supabase.table("ifsc_codes").select("BRANCH,ifsc,ADDRESS").ilike("BANK", bank_query).ilike("CITY", city_query).execute()
+        response = supabase.table("ifsc").select("BRANCH,ifsc,ADDRESS").ilike("BANK", bank_query).ilike("CITY", city_query).execute()
         
         return {"success": True, "count": len(response.data), "branches": response.data}
     except Exception as e: 
