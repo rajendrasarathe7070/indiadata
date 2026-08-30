@@ -1,15 +1,13 @@
 import os
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Query
 from fastapi.middleware.cors import CORSMiddleware
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
-
 load_dotenv()
 
-app = FastAPI(title="Indian Data SaaS API")
+app = FastAPI(title="India Financial & Geo Databank API", version="2.0.0")
 
-# CORS Setup: Taqi RapidAPI se data fetch karte waqt error na aaye
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,52 +16,80 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Supabase Connection
 url: str = os.getenv("SUPABASE_URL")
 key: str = os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(url, key)
 
-# Render Free Tier ko active rakhne ke liye pinger endpoint
 @app.get("/ping")
 def ping():
-    return {"status": "success", "message": "FastAPI Server is active!"}
+    return {"status": "success", "message": "Advanced FastAPI Server is active!"}
 
-# 1. PINCODE LOOKUP ENDPOINT
+# 1. STANDRAD PINCODE LOOKUP (Flexible Data Input)
 @app.get("/api/v1/pincode/{code}")
-def get_pincode_data(code: int):
+def get_pincode_data(code: str):
     try:
-        # Supabase se pincode table query karna
-        response = supabase.table("pincode").select("*").eq("pincode", code).execute()
+        search_val = int(code.strip()) if code.strip().isdigit() else code.strip()
+        response = supabase.table("pincode").select("*").eq("pincode", search_val).execute()
         
-        if not response.data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, 
-                detail="Pincode not found"
-            )
+        # Empty list check standard tarika
+        if not response.data or len(response.data) == 0:
+            raise HTTPException(status_code=404, detail="Pincode not found")
             
-        return {
-            "success": True, 
-            "count": len(response.data), 
-            "data": response.data
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"success": True, "count": len(response.data), "data": response.data}
+    except HTTPException as he: raise he
+    except Exception as e: raise HTTPException(status_code=500, detail="Database fetch error")
 
-# 2. IFSC LOOKUP ENDPOINT
+# 2. STANDARD IFSC LOOKUP (Crash-Proof Single Object Format)
 @app.get("/api/v1/ifsc/{code}")
 def get_ifsc_data(code: str):
     try:
         ifsc_code = code.upper().strip()
-        # Supabase se ifsc table query karna
-        response = supabase.table("ifsc_codes").select("*").eq("IFSC", ifsc_code).execute()
+        response = supabase.table("ifsc_codes").select("*").eq("ifsc", ifsc_code).execute()
         
-        if not response.data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, 
-                detail="Invalid or Unknown IFSC code"
-            )
+        # Yahan array empty hone par crash nahi hoga, gracefully 404 dega
+        if not response.data or len(response.data) == 0:
+            raise HTTPException(status_code=404, detail="Invalid or Unknown IFSC code")
             
-        # Hamein sirf ek record chahiye isliye data[0] return kar rahe hain
-        return {"success": True, "data": response.data[0]}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"success": True, "data": response.data[0]} 
+    except HTTPException as he: raise he
+    except Exception as e: raise HTTPException(status_code=500, detail="Database fetch error")
+
+# 3. ADVANCED: STATE SE DISTRICTS (Case-Insensitive Setup)
+@app.get("/api/v1/districts")
+def get_districts_by_state(state: str = Query(..., description="State name e.g. Telangana")):
+    try:
+        state_name = state.strip()
+        # .ilike se User 'telangana' likhe ya 'Telangana', matching ho jayegi
+        response = supabase.table("pincode").select("district").ilike("statename", state_name).execute()
+        
+        if not response.data or len(response.data) == 0:
+            return {"success": True, "count": 0, "districts": []}
+            
+        unique_districts = list(set([row['district'] for row in response.data if row.get('district')]))
+        return {"success": True, "count": len(unique_districts), "districts": sorted(unique_districts)}
+    except Exception as e: raise HTTPException(status_code=500, detail="Error filtering districts")
+
+# 4. ADVANCED: UNIQUE BANKS LIST
+@app.get("/api/v1/banks/unique")
+def get_unique_banks():
+    try:
+        response = supabase.table("ifsc_codes").select("BANK").execute()
+        if not response.data or len(response.data) == 0:
+            return {"success": True, "banks": []}
+        unique_banks = list(set([row['BANK'] for row in response.data if row.get('BANK')]))
+        return {"success": True, "count": len(unique_banks), "banks": sorted(unique_banks)}
+    except Exception as e: raise HTTPException(status_code=500, detail="Error fetching unique banks")
+
+# 5. ADVANCED: BRANCH FINDER (Case-Insensitive Smart Search)
+@app.get("/api/v1/search-branch")
+def search_bank_branch(
+    bank: str = Query(..., description="e.g. Bank of Baroda"), 
+    city: str = Query(..., description="e.g. Harsud")
+):
+    try:
+        bank_name = bank.strip()
+        city_name = city.strip()
+        # ilike lagane se users lowercase me bhi search karenge to sahi data milega
+        response = supabase.table("ifsc_codes").select("BRANCH,ifsc,ADDRESS").ilike("BANK", bank_name).ilike("CITY", city_name).execute()
+        return {"success": True, "count": len(response.data), "branches": response.data}
+    except Exception as e: raise HTTPException(status_code=500, detail="Error searching branches")
